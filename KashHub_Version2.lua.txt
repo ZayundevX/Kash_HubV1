@@ -1,0 +1,657 @@
+-- Kash Hub - Library GUI (LocalScript)
+-- Coloque este LocalScript em StarterGui (cada jogador receberá o Hub ao entrar)
+-- Feito para Roblox. Interface com botão minimizar, fechar (matar), aba "OP" com espada,
+-- botão "Ligar Esp" e "Ligar Esp V2" que alternam highlights e, no V2, uma antena com nome.
+-- Tamanho inicial: proporção 4:3 (0.6 x 0.45 do viewport).
+-- Movimentação: arraste livre e "snap" para cantos da tela ao soltar.
+-- Minimizado: vira uma bolinha azul com "K"; tanto a janela grande quanto a bolinha são movíveis.
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Helpers
+local function new(className, props)
+	local obj = Instance.new(className)
+	if props then
+		for k, v in pairs(props) do
+			if k ~= "Parent" then
+				obj[k] = v
+			end
+		end
+		if props.Parent then obj.Parent = props.Parent end
+	end
+	return obj
+end
+
+-- Criar ScreenGui dentro do PlayerGui
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+local screenGui = new("ScreenGui", {Name = "KashHubGui", ResetOnSpawn = false, Parent = playerGui})
+
+-- Main Frame (4:3 proportion)
+local mainFrame = new("Frame", {
+	Name = "KashHubMain",
+	Parent = screenGui,
+	Size = UDim2.new(0.6, 0, 0.45, 0), -- 0.6 / 0.45 = 1.333... (4:3)
+	Position = UDim2.new(0.2, 0, 0.27, 0),
+	Visible = true,
+	Active = true,
+	BackgroundTransparency = 0,
+	BorderSizePixel = 0,
+})
+
+-- Fundo gradient (preto -> azul)
+local uiGradient = new("UIGradient", {
+	Parent = mainFrame,
+	Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 110, 255)),
+	},
+	Rotation = 0,
+})
+
+new("UICorner", {Parent = mainFrame, CornerRadius = UDim.new(0, 8)})
+new("UIStroke", {Parent = mainFrame, Color = Color3.fromRGB(20, 40, 80), Thickness = 2, Transparency = 0.25})
+
+-- Título
+local title = new("TextLabel", {
+	Parent = mainFrame,
+	Name = "Title",
+	Text = "Kash Hub",
+	Font = Enum.Font.GothamBold,
+	TextSize = 24,
+	TextColor3 = Color3.fromRGB(240,240,240),
+	BackgroundTransparency = 1,
+	Position = UDim2.new(0.03, 0, 0.04, 0),
+	Size = UDim2.new(0.5, 0, 0.12, 0),
+	TextXAlignment = Enum.TextXAlignment.Left,
+})
+
+-- (Subtítulo removido conforme pedido)
+
+-- Top-right controls (minimize, close)
+local controlsFrame = new("Frame", {
+	Parent = mainFrame,
+	Name = "Controls",
+	Size = UDim2.new(0.18, 0, 0.12, 0),
+	Position = UDim2.new(0.82, 0, 0.02, 0),
+	BackgroundTransparency = 1,
+})
+
+local function makeControlButton(name, text, posX)
+	local btn = new("TextButton", {
+		Parent = controlsFrame,
+		Name = name,
+		Text = text,
+		Font = Enum.Font.SourceSansBold,
+		TextSize = 16,
+		Size = UDim2.new(0.4, 0, 1, 0),
+		Position = UDim2.new(posX, 0, 0, 0),
+		BackgroundColor3 = Color3.fromRGB(40, 40, 40),
+		TextColor3 = Color3.fromRGB(230,230,230),
+		BorderSizePixel = 0,
+		AutoButtonColor = true,
+	})
+	new("UICorner", {Parent = btn, CornerRadius = UDim.new(0,6)})
+	return btn
+end
+
+local minimizeBtn = makeControlButton("Minimize", "—", 0)
+local closeBtn = makeControlButton("Close", "✖", 0.6) -- mudou para símbolo X (✖)
+
+-- Left tab panel (aba pequena, square 3:3 interpretado como 1:1 pequena)
+local tabWidth = 0.12
+local tabFrame = new("Frame", {
+	Parent = mainFrame,
+	Name = "LeftTab",
+	Size = UDim2.new(tabWidth, 0, 1, 0),
+	Position = UDim2.new(0, 0, 0, 0),
+	BackgroundColor3 = Color3.fromRGB(80, 160, 255), -- azul mais clarinho
+	BorderSizePixel = 0,
+})
+new("UICorner", {Parent = tabFrame, CornerRadius = UDim.new(0,6)})
+
+-- Aba menor (quadrada) com símbolo de espada e texto "OP"
+local tabLabel = new("TextButton", {
+	Parent = tabFrame,
+	Name = "TabLabel",
+	Text = "⚔ OP",
+	Font = Enum.Font.GothamBold,
+	TextSize = 18,
+	Size = UDim2.new(0, 40, 0, 40), -- quadrado pequeno (aprox 3:3 pedido)
+	Position = UDim2.new(0.5, -20, 0, 12),
+	BackgroundTransparency = 1,
+	TextColor3 = Color3.fromRGB(245,245,245),
+	AutoButtonColor = false,
+})
+tabLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+-- Container para conteúdo de abas (lado direito do tab)
+local contentFrame = new("Frame", {
+	Parent = mainFrame,
+	Name = "Content",
+	Size = UDim2.new(1 - tabWidth, -10, 0.8, 0),
+	Position = UDim2.new(tabWidth + 0.02, 0, 0.18, 0),
+	BackgroundTransparency = 1,
+})
+
+-- OP Page
+local opPage = new("Frame", {
+	Parent = contentFrame,
+	Name = "OPPage",
+	Size = UDim2.new(1, 0, 1, 0),
+	Position = UDim2.new(0, 0, 0, 0),
+	BackgroundTransparency = 1,
+	Visible = true,
+})
+
+-- Botões menores (white / black text)
+local buttonSize = UDim2.new(0, 140, 0, 36) -- menor que antes, largura média
+local ligarEspBtn = new("TextButton", {
+	Parent = opPage,
+	Name = "LigarEsp",
+	Text = "Ligar Esp",
+	Font = Enum.Font.GothamBold,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(0,0,0),
+	BackgroundColor3 = Color3.fromRGB(255,255,255),
+	Size = buttonSize,
+	Position = UDim2.new(0, 0, 0, 4),
+	AutoButtonColor = true,
+	BorderSizePixel = 0,
+})
+new("UICorner", {Parent = ligarEspBtn, CornerRadius = UDim.new(0,6)})
+new("UIStroke", {Parent = ligarEspBtn, Color = Color3.fromRGB(200,200,200), Thickness = 1, Transparency = 0.5})
+
+local ligarEspV2Btn = new("TextButton", {
+	Parent = opPage,
+	Name = "LigarEspV2",
+	Text = "Ligar Esp V2",
+	Font = Enum.Font.GothamBold,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(0,0,0),
+	BackgroundColor3 = Color3.fromRGB(255,255,255),
+	Size = buttonSize,
+	Position = UDim2.new(0, 0, 0, 48), -- abaixo do primeiro
+	AutoButtonColor = true,
+	BorderSizePixel = 0,
+})
+new("UICorner", {Parent = ligarEspV2Btn, CornerRadius = UDim.new(0,6)})
+new("UIStroke", {Parent = ligarEspV2Btn, Color = Color3.fromRGB(200,200,200), Thickness = 1, Transparency = 0.5})
+
+-- Status labels
+local espStatus = new("TextLabel", {
+	Parent = opPage,
+	Name = "ESPStatus",
+	Text = "Status: Desligado",
+	Font = Enum.Font.Gotham,
+	TextSize = 13,
+	TextColor3 = Color3.fromRGB(200,200,200),
+	BackgroundTransparency = 1,
+	Position = UDim2.new(0, 0, 0, 88),
+	Size = UDim2.new(0.7, 0, 0, 18),
+	TextXAlignment = Enum.TextXAlignment.Left,
+})
+
+local espV2Status = new("TextLabel", {
+	Parent = opPage,
+	Name = "ESPV2Status",
+	Text = "V2: Desligado",
+	Font = Enum.Font.Gotham,
+	TextSize = 13,
+	TextColor3 = Color3.fromRGB(200,200,200),
+	BackgroundTransparency = 1,
+	Position = UDim2.new(0, 160, 0, 88),
+	Size = UDim2.new(0.7, 0, 0, 18),
+	TextXAlignment = Enum.TextXAlignment.Left,
+})
+
+-- Minimizado: bolinha azul com "K"
+local miniButton = new("TextButton", {
+	Parent = screenGui,
+	Name = "KashMiniButton",
+	Size = UDim2.new(0, 40, 0, 40),
+	Position = UDim2.new(0.95, -40, 0.05, 0),
+	Text = "K",
+	Font = Enum.Font.GothamBold,
+	TextSize = 20,
+	TextColor3 = Color3.fromRGB(255,255,255),
+	BackgroundColor3 = Color3.fromRGB(0,110,255),
+	Visible = false,
+	AutoButtonColor = true,
+	BorderSizePixel = 0,
+})
+new("UICorner", {Parent = miniButton, CornerRadius = UDim.new(1, 0)})
+new("UIStroke", {Parent = miniButton, Color = Color3.fromRGB(25,70,140), Thickness = 1})
+
+-- Functionality: ESP highlight toggling (Ligar Esp)
+local espEnabled = false
+local highlightsByPlayer = {}
+local charAddedConnections = {}
+
+local function createHighlightForCharacter(player, character)
+	if not character or not character:IsA("Model") then return end
+	-- avoid duplicating
+	if character:FindFirstChild("KashHubHighlight") then return end
+	-- only if humanoid exists
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+	-- optional: skip local player
+	if player == LocalPlayer then return end
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "KashHubHighlight"
+	highlight.Adornee = character
+	highlight.FillColor = Color3.fromRGB(0,170,255)
+	highlight.OutlineColor = Color3.fromRGB(0,50,120)
+	highlight.FillTransparency = 0.6
+	highlight.OutlineTransparency = 0
+	highlight.DepthMode = Enum.HighlightDepthMode.Occluded -- original ESP uses occluded
+	highlight.Parent = character
+	highlightsByPlayer[player] = highlightsByPlayer[player] or {}
+	table.insert(highlightsByPlayer[player], highlight)
+end
+
+local function removeHighlightsForPlayer(player)
+	local t = highlightsByPlayer[player]
+	if t then
+		for _, h in pairs(t) do
+			if h and h.Parent then
+				h:Destroy()
+			end
+		end
+		highlightsByPlayer[player] = nil
+	end
+end
+
+local function enableESP()
+	if espEnabled then return end
+	espEnabled = true
+	espStatus.Text = "Status: Ligado"
+	for _, pl in pairs(Players:GetPlayers()) do
+		local char = pl.Character
+		if char then
+			createHighlightForCharacter(pl, char)
+		end
+		if not charAddedConnections[pl] then
+			charAddedConnections[pl] = pl.CharacterAdded:Connect(function(c)
+				c:WaitForChild("Humanoid", 2)
+				createHighlightForCharacter(pl, c)
+			end)
+		end
+	end
+	-- PlayerAdded
+	if not charAddedConnections["_PlayerAdded"] then
+		charAddedConnections["_PlayerAdded"] = Players.PlayerAdded:Connect(function(newP)
+			charAddedConnections[newP] = newP.CharacterAdded:Connect(function(c)
+				c:WaitForChild("Humanoid", 2)
+				createHighlightForCharacter(newP, c)
+			end)
+			if newP.Character then
+				createHighlightForCharacter(newP, newP.Character)
+			end
+		end)
+	end
+end
+
+local function disableESP()
+	if not espEnabled then return end
+	espEnabled = false
+	espStatus.Text = "Status: Desligado"
+	for pl, _ in pairs(highlightsByPlayer) do
+		removeHighlightsForPlayer(pl)
+	end
+	-- disconnect character connections except PlayerAdded key (we'll remove all)
+	for k, conn in pairs(charAddedConnections) do
+		if conn and conn.Disconnect then
+			conn:Disconnect()
+		end
+		charAddedConnections[k] = nil
+	end
+end
+
+-- Ligar Esp V2: highlights AlwaysOnTop + create antenna and name billboard
+local espV2Enabled = false
+local highlightsV2 = {}
+local antennasByPlayer = {}
+
+local function createAntennaForCharacter(player, character)
+	if not character or not character:IsA("Model") then return end
+	if character:FindFirstChild("KashHubAntenna") then return end
+	local humanoidRoot = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+	if not humanoidRoot then return end
+
+	-- Create antenna part
+	local antenna = Instance.new("Part")
+	antenna.Name = "KashHubAntenna"
+	antenna.CanCollide = false
+	antenna.Anchored = false
+	antenna.Size = Vector3.new(0.15, 6, 0.15) -- longa para cima
+	antenna.Material = Enum.Material.SmoothPlastic
+	antenna.Color = Color3.fromRGB(0, 140, 255)
+	antenna.Transparency = 0.15
+	antenna.Parent = character
+
+	-- Position it above the humanoid root
+	antenna.CFrame = humanoidRoot.CFrame * CFrame.new(0, antenna.Size.Y/2 + 1.5, 0)
+
+	-- Weld to humanoidRoot so it moves with player
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = antenna
+	weld.Part1 = humanoidRoot
+	weld.Parent = antenna
+
+	-- BillboardGui at top with player's name
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "KashNameBillboard"
+	billboard.Adornee = antenna
+	billboard.AlwaysOnTop = true
+	billboard.Size = UDim2.new(0, 150, 0, 30)
+	billboard.StudsOffset = Vector3.new(0, antenna.Size.Y/2 + 0.5, 0)
+	billboard.Parent = antenna
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1,0,1,0)
+	label.BackgroundTransparency = 1
+	label.Text = player.Name
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 16
+	label.TextColor3 = Color3.fromRGB(240,240,240)
+	label.Parent = billboard
+
+	antennasByPlayer[player] = antenna
+end
+
+local function removeAntennaForPlayer(player)
+	local a = antennasByPlayer[player]
+	if a and a.Parent then
+		a:Destroy()
+	end
+	antennasByPlayer[player] = nil
+end
+
+local function createV2HighlightForCharacter(player, character)
+	if not character or not character:IsA("Model") then return end
+	if character:FindFirstChild("KashHubHighlightV2") then return end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+	-- skip local player (keeps consistent)
+	if player == LocalPlayer then return end
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "KashHubHighlightV2"
+	highlight.Adornee = character
+	highlight.FillColor = Color3.fromRGB(0,120,255)
+	highlight.OutlineColor = Color3.fromRGB(10,50,140)
+	highlight.FillTransparency = 0.45
+	highlight.OutlineTransparency = 0
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- atravessa tudo
+	highlight.Parent = character
+
+	highlightsV2[player] = highlightsV2[player] or {}
+	table.insert(highlightsV2[player], highlight)
+end
+
+local function removeV2HighlightsForPlayer(player)
+	local t = highlightsV2[player]
+	if t then
+		for _, h in pairs(t) do
+			if h and h.Parent then
+				h:Destroy()
+			end
+		end
+		highlightsV2[player] = nil
+	end
+end
+
+local function enableESPV2()
+	if espV2Enabled then return end
+	espV2Enabled = true
+	espV2Status.Text = "V2: Ligado"
+	-- create for current players and antennas
+	for _, pl in pairs(Players:GetPlayers()) do
+		if pl == LocalPlayer then continue end
+		local char = pl.Character
+		if char then
+			createV2HighlightForCharacter(pl, char)
+			createAntennaForCharacter(pl, char)
+		end
+		-- connect for future respawns
+		if not charAddedConnections["v2_"..tostring(pl)] then
+			charAddedConnections["v2_"..tostring(pl)] = pl.CharacterAdded:Connect(function(c)
+				c:WaitForChild("Humanoid", 2)
+				createV2HighlightForCharacter(pl, c)
+				createAntennaForCharacter(pl, c)
+			end)
+		end
+	end
+	-- PlayerAdded
+	if not charAddedConnections["_PlayerAddedV2"] then
+		charAddedConnections["_PlayerAddedV2"] = Players.PlayerAdded:Connect(function(newP)
+			charAddedConnections["v2_"..tostring(newP)] = newP.CharacterAdded:Connect(function(c)
+				c:WaitForChild("Humanoid", 2)
+				createV2HighlightForCharacter(newP, c)
+				createAntennaForCharacter(newP, c)
+			end)
+			if newP.Character then
+				createV2HighlightForCharacter(newP, newP.Character)
+				createAntennaForCharacter(newP, newP.Character)
+			end
+		end)
+	end
+end
+
+local function disableESPV2()
+	if not espV2Enabled then return end
+	espV2Enabled = false
+	espV2Status.Text = "V2: Desligado"
+	for pl, _ in pairs(highlightsV2) do
+		removeV2HighlightsForPlayer(pl)
+	end
+	for pl, _ in pairs(antennasByPlayer) do
+		removeAntennaForPlayer(pl)
+	end
+	-- disconnect v2 specific connections
+	for k, conn in pairs(charAddedConnections) do
+		if type(k) == "string" and (k:sub(1,3) == "v2_") then
+			if conn and conn.Disconnect then
+				conn:Disconnect()
+			end
+			charAddedConnections[k] = nil
+		end
+	end
+	if charAddedConnections["_PlayerAddedV2"] then
+		charAddedConnections["_PlayerAddedV2"]:Disconnect()
+		charAddedConnections["_PlayerAddedV2"] = nil
+	end
+end
+
+-- Button click toggles
+ligarEspBtn.MouseButton1Click:Connect(function()
+	if espEnabled then
+		disableESP()
+	else
+		enableESP()
+	end
+end)
+
+ligarEspV2Btn.MouseButton1Click:Connect(function()
+	if espV2Enabled then
+		disableESPV2()
+	else
+		enableESPV2()
+	end
+end)
+
+-- Tab clicking toggles content
+tabLabel.MouseButton1Click:Connect(function()
+	opPage.Visible = not opPage.Visible
+end)
+
+-- Minimize / restore logic
+local function minimize()
+	mainFrame.Visible = false
+	miniButton.Visible = true
+	-- position miniButton near the frame's last corner (use absolute position)
+	local absPos = mainFrame.AbsolutePosition
+	local absSize = mainFrame.AbsoluteSize
+	local x = absPos.X
+	local y = absPos.Y
+	local screenSize = workspace.CurrentCamera.ViewportSize
+	x = math.clamp(x, 0, screenSize.X - miniButton.AbsoluteSize.X)
+	y = math.clamp(y, 0, screenSize.Y - miniButton.AbsoluteSize.Y)
+	miniButton.Position = UDim2.new(0, x, 0, y)
+end
+
+local function restore()
+	mainFrame.Visible = true
+	miniButton.Visible = false
+end
+
+minimizeBtn.MouseButton1Click:Connect(function()
+	minimize()
+end)
+
+miniButton.MouseButton1Click:Connect(function()
+	restore()
+end)
+
+-- Close (kill) logic: limpa tudo e destroi GUI
+local function cleanupAndClose()
+	disableESP()
+	disableESPV2()
+	if screenGui and screenGui.Parent then
+		screenGui:Destroy()
+	end
+end
+
+closeBtn.MouseButton1Click:Connect(function()
+	cleanupAndClose()
+end)
+
+-- Make the mainFrame draggable with snapping to corners
+do
+	local dragging = false
+	local dragStart = Vector2.new(0,0)
+	local startPos = UDim2.new()
+	local moveConn, endConn
+
+	local function startDrag(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		moveConn = UserInputService.InputChanged:Connect(function(i)
+			if not dragging then return end
+			if i.UserInputType == Enum.UserInputType.MouseMovement then
+				local delta = i.Position - dragStart
+				local screenSize = workspace.CurrentCamera.ViewportSize
+				local newX = startPos.X.Scale + delta.X / screenSize.X
+				local newY = startPos.Y.Scale + delta.Y / screenSize.Y
+				mainFrame.Position = UDim2.new(newX, startPos.X.Offset + delta.X, newY, startPos.Y.Offset + delta.Y)
+			end
+		end)
+		endConn = UserInputService.InputEnded:Connect(function(i)
+			if i.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+				dragging = false
+				if moveConn then moveConn:Disconnect() moveConn = nil end
+				if endConn then endConn:Disconnect() endConn = nil end
+				-- snap to nearest corner if close enough
+				local absPos = mainFrame.AbsolutePosition
+				local absSize = mainFrame.AbsoluteSize
+				local screenSize = workspace.CurrentCamera.ViewportSize
+				local corners = {
+					Vector2.new(0,0),
+					Vector2.new(screenSize.X - absSize.X, 0),
+					Vector2.new(0, screenSize.Y - absSize.Y),
+					Vector2.new(screenSize.X - absSize.X, screenSize.Y - absSize.Y),
+				}
+				local threshold = 160
+				local best, bestDist = nil, math.huge
+				for _, c in ipairs(corners) do
+					local d = (absPos - c).Magnitude
+					if d < bestDist then bestDist = d best = c end
+				end
+				if best and bestDist <= threshold then
+					local xScale = best.X / screenSize.X
+					local yScale = best.Y / screenSize.Y
+					mainFrame.Position = UDim2.new(xScale, 0, yScale, 0)
+				end
+			end
+		end)
+	end
+
+	-- Attach to mainFrame input; ignore when clicking on buttons
+	mainFrame.InputBegan:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+		local target = input.Target
+		if target and (target:IsA("TextButton") or target:IsA("TextBox") or target:IsA("ImageButton")) then
+			return
+		end
+		startDrag(input)
+	end)
+end
+
+-- Make the miniButton draggable independently
+do
+	local draggingMini = false
+	local dragStart = Vector2.new()
+	local startPos = UDim2.new()
+	local moveConn, endConn
+
+	local function startMiniDrag(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+		draggingMini = true
+		dragStart = input.Position
+		startPos = miniButton.Position
+		moveConn = UserInputService.InputChanged:Connect(function(i)
+			if not draggingMini then return end
+			if i.UserInputType == Enum.UserInputType.MouseMovement then
+				local delta = i.Position - dragStart
+				-- convert delta to pixels and add to startPos offset
+				local newX = startPos.X.Offset + delta.X
+				local newY = startPos.Y.Offset + delta.Y
+				-- clamp to viewport
+				local screen = workspace.CurrentCamera.ViewportSize
+				newX = math.clamp(newX, 0, screen.X - miniButton.AbsoluteSize.X)
+				newY = math.clamp(newY, 0, screen.Y - miniButton.AbsoluteSize.Y)
+				miniButton.Position = UDim2.new(0, newX, 0, newY)
+			end
+		end)
+		endConn = UserInputService.InputEnded:Connect(function(i)
+			if i.UserInputType == Enum.UserInputType.MouseButton1 and draggingMini then
+				draggingMini = false
+				if moveConn then moveConn:Disconnect() moveConn = nil end
+				if endConn then endConn:Disconnect() endConn = nil end
+			end
+		end)
+	end
+
+	miniButton.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			startMiniDrag(input)
+		end
+	end)
+end
+
+-- Keyboard shortcuts (opcional): M para minimizar/restore, K para fechar
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.UserInputType == Enum.UserInputType.Keyboard then
+		if input.KeyCode == Enum.KeyCode.M then
+			if mainFrame.Visible then minimize() else restore() end
+		elseif input.KeyCode == Enum.KeyCode.K then
+			cleanupAndClose()
+		end
+	end
+end)
+
+-- Safety cleanup ao destruir GUI
+screenGui.Destroying:Connect(function()
+	disableESP()
+	disableESPV2()
+end)
+
+-- Fim do script
